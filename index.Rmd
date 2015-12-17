@@ -1,0 +1,99 @@
+---
+title: "Machine Learning Coursera Project"
+author: "K. Somers"
+date: "December 15, 2015"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# load libraries
+  library(ggplot2)
+  library(caret)
+
+# load data
+  load("C:/Users/kayleigh.somers/Desktop/Coursera/ML_RUN.RData")
+```
+
+
+# Executive Summary
+
+# Introduction
+  Using proper form in weight lifting is extremely important to ensure both that a person gains strength from the exercise and that they do not injure themselves. One way to improve the form of weight lifters is to instrument them while performing their exercises. However, we must identify the aspects that are most important to observe and how to interpret the data collected. In this analysis, we use the Weight Lifting Exercises Dataset (available at <http://groupware.les.inf.puc-rio.br/har>) to classify different errors in form as accurately as possible.  
+
+## Dataset
+
+The dataset consists of `r ncol(train.full)` variables, of which `r ncol(train.sub)` contain records for all `r nrow(train.sub)` observations.
+
+# Methods
+
+I first identified variables that were potentially good indicators of each class of exercise. I examined boxplots of every variable above, colored by class, and classified each metric as a poor, mediocre, or good indicator based on differences in the mean and distribution of the variable. 
+
+Variables that were likely poor indicators showed very similar distributions across all classes, such as yaw of arm: 
+
+```{r, echo=FALSE}
+    ggplot(train.sub, aes(factor(classe), yaw_arm)) +
+      geom_boxplot(aes(fill=factor(classe))) +
+      labs(y = "Yaw of Arm") +
+      labs(x = "Class")
+```
+
+Others showed clearly different means across classes, such as the x-dimension of the magnet on the arm:
+
+```{r, echo=FALSE}
+    ggplot(train.sub, aes(factor(classe), magnet_arm_x)) +
+      geom_boxplot(aes(fill=factor(classe))) +
+      labs(y = "X-Dimension of Arm Magnet") +
+      labs(x = "Class")
+```
+
+Ultimately, I selected all variables that appeared to be good indicators. Some of these showed clear differences in mean value across all classes, while others showed a clear difference in one or two classes from the others.  I selected `r ncol(train.selbig)-1` variables, to use in my model: 
+
+```{r, echo=FALSE}
+  names(train.selbig)
+```
+
+I decided to use a boosting with trees algorithm, because boosting is typically a top performer in prediction models and because boosting relies on using a high number of predictors to create accurate classifications. Given the large amount of data provided, boosting offerred the best leverage for create accurate classifications. I ran boosting using the "gbm" method in the train function in the carat package in R:
+
+```{r, eval=FALSE}
+    pmlBoost.sel <- train(classe ~ ., data=train.selbig, method="gbm", verbose = FALSE)  
+```
+
+# Results
+
+The boosting model using a subset of variables was highly accurate for the training data, predicting the class of each exercise with `r round(conf$overall[1] * 100, digits=0)` percent accuracy.
+
+```{r, message=FALSE, warning=FALSE}
+  pmlBoostSelPredBig <- predict(pmlBoost.selbig, newdata=train.selbig)
+  confusionMatrix(pmlBoostSelPredBig, train.selbig$classe)
+```
+
+
+
+```{r, echo=F}
+  aggPred <- count(pmlBoostSelPredBig)
+  colnames(aggPred) <- c("Class", "Pred")
+  aggDat <- count(train.selbig$classe)
+  colnames(aggDat) <- c("Class", "Data")
+  
+  aggAll <- merge(aggDat, aggPred, by="Class")
+  
+  ggplot(aes(x=Data, y=Pred, color=Class), data=aggAll) +
+      geom_point(size=5) +
+      xlab("True Number in Data") +
+      ylab("Predicted Number in Data") +
+      xlim(0,max(aggAll$Data)) +
+      ylim(0,max(aggAll$Pred))
+
+```
+
+However, the true test of the model will be its accuracy when applied to the testing data. Out-of-sample accuracy is nearly always lower than in-sample accuracy. I avoided over-fitting by removing a large number of extraneous variables, so I expect that the accuracy will decrease, but only slightly. I will calculate the out-of-sample accuracy by predicting the classes in the test set and then comparing to the true values:
+
+```{r, eval=FALSE}
+  testPred <- predict(pmlBoostSelPredBig, newdata=test.selbig)
+```
+
+# Discussion
+
+By selecting only those variables that appear to be good indicators of class, I ensured that the boosting model would not be over-fit. This allows the model to be highly accurate in predicting the training data, and should prove only slightly less accurate in classifying out-of-sample test data. When applied to the test dataset, 19 out of 20 cases were correctly classified, resulting in only slightly lower accuracy of 95 percent.
+
+In future, this model could provide a basis for identifying the best indicator variables as well as those that are unnecessary and do little to improve classification accuracy.
